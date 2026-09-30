@@ -1,0 +1,29 @@
+{
+  "name": "minimax-code2api",
+  "version": "0.1.0",
+  "description": "Reverse proxy that turns a MiniMax Code desktop subscription (Coding Plan) into Anthropic & OpenAI compatible APIs, with zero-dependency Node.js",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "bin": {
+    "minimax-code2api": "bin/minimax-code2api.js"
+  },
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "keywords": [
+    "minimax",
+    "minimax-code",
+    "mcode",
+    "proxy",
+    "anthropic",
+    "openai",
+    "claude-code",
+    "2api"
+  ],
+  "repository": {
+    "type": "git"
+  }
+}

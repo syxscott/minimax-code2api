@@ -1,0 +1,11 @@
+{
+  "host": "127.0.0.1",
+  "port": 8045,
+  "apiKeys": [],
+  "region": "cn",
+  "upstreamBaseUrl": "",
+  "dataDir": "",
+  "defaultModel": "MiniMax-M3",
+  "modelAlias": {},
+  "logLevel": "info"
+}

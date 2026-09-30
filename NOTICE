@@ -1,0 +1,29 @@
+minimax-code2api
+================
+
+This project contains code adapted from the following third-party sources:
+
+1. MiniMax-AI/minimax-code (https://github.com/MiniMax-AI/minimax-code)
+   - File: packages/oauth-lease-protocol/src/{contracts.ts, codec.ts, endpoints.ts}
+   - Adapted into: src/lease.js
+   - Copyright (c) 2026 MiniMax Code
+   - License: MIT (https://github.com/MiniMax-AI/minimax-code/blob/main/LICENSE)
+   - Changes: ported from TypeScript to plain JavaScript; trimmed to the
+     client-side subset (frame codec, endpoint resolution, protocol
+     constants/error codes); server-side code and capability provisioning
+     were removed.
+
+2. Model metadata in src/models.js mirrors the first-run model catalog from
+   MiniMax-AI/minimax-code (packages/config/src/minimax-model-catalog.ts),
+   Copyright (c) 2026 MiniMax Code, MIT.
+
+Design references (no code copied):
+   - TriDefender/zcode-api — overall "coding-plan to API" proxy design
+   - router-for-me/CLIProxyAPI — multi-protocol gateway layout
+   - Wei-Shaw/sub2api — token/credential lifecycle handling
+
+This project is not affiliated with or endorsed by MiniMax. It talks to the
+locally installed MiniMax Code desktop app on the user's own machine, using
+the desktop app's own local credential-leasing interface, and forwards
+requests to MiniMax endpoints on behalf of that logged-in account. Use of the
+underlying MiniMax service remains subject to MiniMax's terms of service.
