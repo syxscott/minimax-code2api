@@ -5,25 +5,60 @@
 //   Authorization: Bearer <token>
 //   User-Agent: MiniMaxAgent
 //   X-Mavis-Session-Id / X-Mavis-Agent-Id / X-Mavis-Timezone-Offset
+//
+// X-Mavis-Session-Id granularity: the desktop client uses one id per agent
+// session (conversation). We approximate that — a stable id per client
+// session hint when the client provides one (Anthropic metadata.user_id,
+// x-session-id header, OpenAI "user" field), otherwise one id per client
+// that rotates after 30 minutes idle.
 import http from 'node:http';
 import https from 'node:https';
 import crypto from 'node:crypto';
 import { anthropicMessagesUrl, filesUploadUrl } from './config.js';
 
-const SESSION_ID = crypto.randomUUID();
 const AGENT_ID = 'main';
 const TIMEZONE_OFFSET_SECONDS = new Date().getTimezoneOffset() * -60;
+const SESSION_IDLE_MS = 30 * 60 * 1000;
+const SESSION_POOL_MAX = 512;
 
 const UPSTREAM_KEEPALIVE = new https.Agent({
   keepAlive: true,
   maxSockets: 16,
 });
 
-export function managedAuthHeaders(accessToken) {
+// Deterministic UUID (same hint -> same id, stable across restarts).
+function stableUuid(input) {
+  const hash = crypto.createHash('sha256').update(input).digest('hex').slice(0, 32);
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
+
+const sessionPool = new Map(); // key -> { id, lastUsed }
+
+export function acquireSessionId(hint, clientKey) {
+  const now = Date.now();
+  const key = hint ? `h:${hint}` : `c:${clientKey ?? 'local'}`;
+  let entry = sessionPool.get(key);
+  if (!entry || now - entry.lastUsed > SESSION_IDLE_MS) {
+    entry = { id: hint ? stableUuid(`mavis-session:${hint}`) : crypto.randomUUID(), lastUsed: now };
+    sessionPool.set(key, entry);
+    if (sessionPool.size > SESSION_POOL_MAX) {
+      // Evict least-recently-used entries past capacity.
+      const oldest = [...sessionPool.entries()]
+        .sort((a, b) => a[1].lastUsed - b[1].lastUsed)
+        .slice(0, sessionPool.size - SESSION_POOL_MAX);
+      for (const [k] of oldest) sessionPool.delete(k);
+    }
+  } else {
+    entry.lastUsed = now;
+  }
+  return entry.id;
+}
+
+export function managedAuthHeaders(accessToken, sessionId) {
   return {
     Authorization: `Bearer ${accessToken}`,
     'User-Agent': 'MiniMaxAgent',
-    'X-Mavis-Session-Id': SESSION_ID,
+    'X-Mavis-Session-Id': sessionId,
     'X-Mavis-Agent-Id': AGENT_ID,
     'X-Mavis-Timezone-Offset': String(TIMEZONE_OFFSET_SECONDS),
   };
@@ -45,7 +80,7 @@ export class UpstreamError extends Error {
  * response object is returned regardless of status so the caller can relay
  * the error body/SSE itself.
  */
-export function upstreamRequest({ config, tokenManager, url, method = 'POST', headers = {}, body, stream = false, signal }) {
+export function upstreamRequest({ config, tokenManager, url, method = 'POST', headers = {}, body, stream = false, signal, sessionId }) {
   return new Promise((resolve, reject) => {
     tokenManager
       .getToken()
@@ -55,7 +90,7 @@ export function upstreamRequest({ config, tokenManager, url, method = 'POST', he
         const isTls = target.protocol === 'https:';
         const transport = isTls ? https : http;
         const requestHeaders = {
-          ...managedAuthHeaders(token.accessToken),
+          ...managedAuthHeaders(token.accessToken, sessionId ?? acquireSessionId(null, null)),
           Accept: 'application/json',
           ...headers,
         };

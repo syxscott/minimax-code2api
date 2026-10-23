@@ -9,7 +9,7 @@ import {
   convertNonStreamResponse,
   createStreamTransformer,
 } from '../convert/anthropic-to-openai.js';
-import { UpstreamError, upstreamRequest, withTokenRetry } from '../upstream.js';
+import { UpstreamError, upstreamRequest, withTokenRetry, acquireSessionId } from '../upstream.js';
 import { readBody, sendJson, sendProtocolError, sendSseError } from '../http-utils.js';
 import { respondUpstreamError, modelsPayload } from './anthropic.js';
 
@@ -39,6 +39,12 @@ export async function handleChatCompletions(req, res, ctx) {
   stats.openai.requests += 1;
 
   const payload = Buffer.from(JSON.stringify(converted), 'utf8');
+  const sessionId = acquireSessionId(
+    String(req.headers['x-session-id'] ?? '').trim() ||
+      (typeof body.user === 'string' && body.user.trim()) ||
+      '',
+    req.socket?.remoteAddress ?? 'local',
+  );
 
   const attempt = () =>
     upstreamRequest({
@@ -50,6 +56,7 @@ export async function handleChatCompletions(req, res, ctx) {
       body: payload,
       stream: true,
       signal: req.abortSignal,
+      sessionId,
     }).then(async (upRes) => {
       if (upRes.statusCode !== 200) {
         const chunks = [];

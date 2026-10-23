@@ -91,11 +91,13 @@ resp = client.chat.completions.create(
 
 ## 已支持的能力
 
-- **Anthropic 协议**：`/v1/messages` 透传（含 SSE 流式）、`/v1/messages/count_tokens`（本地估算）、`/v1/files/upload` 透传
+- **Anthropic 协议**：`/v1/messages` 透传（含 SSE 流式、`anthropic-beta` / `accept` 头透传）、`/v1/messages/count_tokens`（本地估算）、`/v1/files/upload` 透传
 - **OpenAI 协议**：`/v1/chat/completions`（流式/非流式）、`/v1/models`
+- **模型直通**：`MiniMax-*` 形态的模型名原样发往上游（上游对 Plan 未含的模型会自动降级到最接近的型号，如 H3→M3.1-Flash），只对外来名（`gpt-*`、`claude-*` 等）做别名/默认映射——上游新增模型无需升级本网关即可使用
 - **工具调用**：OpenAI tools/function ↔ Anthropic tool_use/tool_result 双向转换（含流式 tool_call 增量）
 - **多模态**：图片输入（base64 data URL 与 http URL）
 - **思维链**：`thinking` 字段透传；OpenAI 客户端的 `reasoning_effort` 映射为 thinking 开关（仅对支持关闭思维的 M3 生效），思维增量以 `reasoning_content` 下发
+- **会话粒度**：`X-Mavis-Session-Id` 与桌面端同为"每会话一个"——客户端带会话标识时（Anthropic `metadata.user_id`、`x-session-id` 头、OpenAI `user` 字段）稳定映射到同一 id，否则按客户端每 30 分钟空闲轮换
 - **401 自愈**：上游返回 401 时自动作废缓存 token、重新租约并重试一次
 - **用量统计**：流式响应的 `usage`（MiniMax 在 `message_delta` 中回传完整 input/output tokens）正确映射
 
@@ -103,6 +105,9 @@ resp = client.chat.completions.create(
 
 **报 "Cannot reach auth broker" / "Cannot read capability file"**
 桌面端没在运行或没登录。启动并登录 MiniMax Code 桌面端即可，无需重启代理。
+（细节：broker 管道名是数据目录小写路径的 sha256 前 16 位，路径已按官方方式
+做 win32 归一化，正斜杠/反斜杠混用均可；若仍连不上，确认 `dataDir` 指向的是
+真实数据目录。）
 
 **上游 401 且重试后仍失败**
 桌面端的登录态已过期，请在桌面端里重新登录。

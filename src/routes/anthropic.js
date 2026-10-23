@@ -3,8 +3,23 @@
 // rewrite the model id, inject auth, and relay bytes both ways.
 import { anthropicMessagesUrl, filesUploadUrl } from '../config.js';
 import { resolveUpstreamModel, MINIMAX_MODELS } from '../models.js';
-import { UpstreamError, upstreamRequest, withTokenRetry } from '../upstream.js';
+import { UpstreamError, upstreamRequest, withTokenRetry, acquireSessionId } from '../upstream.js';
 import { readBody, sendJson, sendProtocolError } from '../http-utils.js';
+
+// Approximate the desktop client's one-X-Mavis-Session-Id-per-conversation
+// behavior: prefer an explicit client session marker, fall back to a stable
+// id per client IP that rotates after idle.
+function sessionHintFor(headers, body) {
+  return (
+    String(headers['x-session-id'] ?? '').trim() ||
+    (typeof body?.metadata?.user_id === 'string' && body.metadata.user_id.trim()) ||
+    ''
+  );
+}
+
+function clientKeyFor(req) {
+  return req.socket?.remoteAddress ?? 'local';
+}
 
 export async function handleMessages(req, res, ctx) {
   const { config, tokenManager, log, stats } = ctx;
@@ -27,6 +42,11 @@ export async function handleMessages(req, res, ctx) {
 
   const payload = Buffer.from(JSON.stringify(body), 'utf8');
   const streaming = body.stream === true;
+  const sessionId = acquireSessionId(sessionHintFor(req.headers, body), clientKeyFor(req));
+  // Relay Anthropic-protocol client headers the upstream may act on.
+  const clientHeaders = {};
+  if (req.headers['anthropic-beta']) clientHeaders['anthropic-beta'] = req.headers['anthropic-beta'];
+  if (req.headers.accept) clientHeaders.Accept = req.headers.accept;
   stats.anthropic.requests += 1;
 
   const attempt = () =>
@@ -35,10 +55,11 @@ export async function handleMessages(req, res, ctx) {
       tokenManager,
       url: anthropicMessagesUrl(config),
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' },
+      headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', ...clientHeaders },
       body: payload,
       stream: true,
       signal: req.abortSignal,
+      sessionId,
     }).then(async (upRes) => {
       if (upRes.statusCode !== 200) {
         const chunks = [];

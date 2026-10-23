@@ -152,6 +152,27 @@ async function main() {
 
   await sleep(800);
 
+  // ---- T5b minimax model passthrough (must NOT be remapped to default) -------
+  {
+    const res = await fetch(`${BASE}/v1/chat/completions`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({
+        model: 'MiniMax-M2.5', // served by the managed endpoint; must be passed through
+        max_tokens: 32,
+        messages: [{ role: 'user', content: 'Reply with exactly: pong-m25' }],
+      }),
+    });
+    const body = await res.json();
+    record(
+      'T5b MiniMax model passthrough',
+      res.status === 200 && body.model === 'MiniMax-M2.5',
+      `upstream echoed ${body.model}`,
+    );
+  }
+
+  await sleep(800);
+
   // ---- T6 openai stream -------------------------------------------------------
   {
     const res = await fetch(`${BASE}/v1/chat/completions`, {

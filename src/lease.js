@@ -43,10 +43,13 @@ export class AuthLeaseError extends Error {
 
 export function resolveLeaseEndpoint(dataDir, platform = process.platform) {
   if (platform === 'win32') {
+    // The broker names its pipe after the lowercased, win32-NORMALIZED data
+    // dir (backslashes). Forward-slash joins hash to a different pipe —
+    // normalize first, exactly like the official client does.
     if (!path.win32.isAbsolute(dataDir)) {
       throw new AuthLeaseError('INVALID_REQUEST', 'dataDir must be an absolute path on Windows.');
     }
-    const canonical = dataDir.replace(/[\\/]+$/u, '');
+    const canonical = path.win32.normalize(dataDir).replace(/[\\/]+$/u, '');
     const digest = crypto
       .createHash('sha256')
       .update(canonical.toLowerCase())
