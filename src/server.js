@@ -7,6 +7,7 @@ import { TokenManager } from './token-manager.js';
 import { resolveDataDir } from './config.js';
 import { handleMessages, handleCountTokens, handleFilesUpload, modelsPayload, respondUpstreamError } from './routes/anthropic.js';
 import { handleChatCompletions, handleOpenAiModels } from './routes/openai.js';
+import { handleResponses } from './routes/responses.js';
 import { handleDashboard, handleHealth, handleStatus } from './routes/admin.js';
 import { sendJson, sendProtocolError, isAuthorized, readBody } from './http-utils.js';
 
@@ -72,6 +73,9 @@ function main() {
           return;
         case 'POST /v1/chat/completions':
           await handleChatCompletions(req, res, ctx);
+          return;
+        case 'POST /v1/responses':
+          await handleResponses(req, res, ctx);
           return;
         case 'GET /v1/models':
           sendJson(res, 200, modelsPayload());

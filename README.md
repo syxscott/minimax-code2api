@@ -47,6 +47,7 @@ node src/server.js path/to/config.json
 - 状态面板：<http://127.0.0.1:8045/>
 - Anthropic 端点：`POST http://127.0.0.1:8045/v1/messages`
 - OpenAI 端点：`POST http://127.0.0.1:8045/v1/chat/completions`
+- Responses 端点：`POST http://127.0.0.1:8045/v1/responses`（Codex CLI 等使用）
 - 模型列表：`GET http://127.0.0.1:8045/v1/models`
 - 健康检查：`GET http://127.0.0.1:8045/health`
 
@@ -73,6 +74,23 @@ resp = client.chat.completions.create(
 
 **ZCode / 其他 Anthropic 协议客户端**：把 API 地址设为 `http://127.0.0.1:8045`，API Key 随意（未配置 `apiKeys` 时）。
 
+**Codex CLI**（新版 Codex 只支持 Responses 协议，本网关已实现）。在独立的 `CODEX_HOME` 里写 `config.toml`（不影响全局配置）：
+
+```toml
+model = "MiniMax-M3"
+model_provider = "minimax"
+
+[model_providers.minimax]
+name = "MiniMax via minimax-code2api"
+base_url = "http://127.0.0.1:8045/v1"
+wire_api = "responses"
+env_key = "M2A_KEY"
+```
+
+```bash
+M2A_KEY=any CODEX_HOME=/path/to/that/dir codex exec "你的任务"
+```
+
 ## 配置
 
 复制 `config.example.json` 为 `config.json`（或用环境变量覆盖）：
@@ -93,6 +111,7 @@ resp = client.chat.completions.create(
 
 - **Anthropic 协议**：`/v1/messages` 透传（含 SSE 流式、`anthropic-beta` / `accept` 头透传）、`/v1/messages/count_tokens`（本地估算）、`/v1/files/upload` 透传
 - **OpenAI 协议**：`/v1/chat/completions`（流式/非流式）、`/v1/models`
+- **Responses 协议**：`/v1/responses`（Codex CLI 线路）——message/function_call/function_call_output/reasoning 输入项、function 与 custom 工具、推理力度映射、完整流式事件序列（output_text.delta / function_call_arguments.delta / reasoning_summary_text.delta / completed / incomplete / failed），无状态设计（`previous_response_id` 需客户端全量回放，Codex `store:false` 默认如此）
 - **模型直通**：`MiniMax-*` 形态的模型名原样发往上游（上游对 Plan 未含的模型会自动降级到最接近的型号，如 H3→M3.1-Flash），只对外来名（`gpt-*`、`claude-*` 等）做别名/默认映射——上游新增模型无需升级本网关即可使用
 - **工具调用**：OpenAI tools/function ↔ Anthropic tool_use/tool_result 双向转换（含流式 tool_call 增量）
 - **多模态**：图片输入（base64 data URL 与 http URL）

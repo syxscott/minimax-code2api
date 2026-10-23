@@ -3,7 +3,7 @@
 // dropped rather than guessed at.
 import crypto from 'node:crypto';
 
-const MAX_TOKENS_FLOOR = 1024;
+const MAX_TOKENS_FLOOR = 1;
 
 export function convertOpenAiToAnthropic(openaiBody, upstreamModel, modelMeta) {
   const system = [];
