@@ -122,6 +122,8 @@ resp = client.chat.completions.create(
 
 本项目与 MiniMax 官方无关，仅供个人学习研究。它复用的是你自己已登录账号的订阅额度，上游请求均以该账号身份发起，使用 MiniMax 服务请遵守其服务条款。逆向接口可能随官方版本变动失效。
 
+**条款现状（核查于 2026-10-23）**：订阅计划现名 **M Plan**（Coding Plan → Token Plan → M Plan 三代演进）。当前版[官方 FAQ](https://platform.minimax.io/docs/m-plan/faq)（国内外站一致）中**没有**"禁止 API 调用"类条款，明确支持"任何支持 OpenAI 或 Anthropic 兼容协议的工具"接入；定位为"个人开发者交互式使用"，治理手段以限流为主（5 小时/每周窗口 + 账号维度速率调控）。桌面端内嵌的《MiniMax 用户协议》仍保留对异常使用（异常登录、账号共享等）冻结/封禁的通用权力。若你持有旧 Token Plan 且未升级，旧条款继续适用，请自行核对当时条款。
+
 ## 致谢
 
 - [MiniMax-AI/minimax-code](https://github.com/MiniMax-AI/minimax-code) —— 租约协议与模型目录的移植来源（MIT，见 NOTICE）
