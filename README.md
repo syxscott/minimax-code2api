@@ -1,17 +1,20 @@
 # minimax-code2api
 
-把 **MiniMax Code 桌面端**的 Coding Plan 订阅，转成 **Anthropic** 和 **OpenAI** 双协议兼容 API 的本地反向代理。让你能在 Claude Code、ZCode、Cherry Studio、LobeChat、OpenWebUI 等任何支持这两种协议的客户端里复用 MiniMax M3 / M2.7 系列模型。
+把 **MiniMax Code 桌面端**的订阅额度（M Plan / Coding Plan），转成 **Anthropic**、**OpenAI Chat**、**OpenAI Responses** 三协议兼容 API 的本地反向代理。让你能在 Claude Code、Codex、ZCode、Cherry Studio、LobeChat、OpenWebUI 等任何支持这两种协议的客户端里复用 MiniMax M3 / M2.7 / M2.5 系列模型。
+
+> ⚠️ **仅供个人学习研究**：请勿将本项目用于转售、多用户共享或任何违反 MiniMax 服务条款的场景。你的账号、你的责任。
 
 **零依赖** —— 纯 Node.js（≥18.17）标准库实现，无需 `npm install`。
 
 ```
-Claude Code / ZCode / Cherry Studio / 任意客户端
-        │  Anthropic 协议                │  OpenAI 协议
-        │  POST /v1/messages             │  POST /v1/chat/completions
-        ▼                                ▼
-┌───────────────── minimax-code2api (127.0.0.1:8045) ─────────────────┐
-│  Anthropic 透传  ·  OpenAI⇄Anthropic 转换  ·  API Key 鉴权  ·  状态页 │
-└──────────────────────────┬──────────────────────────────────────────┘
+Claude Code / Codex / ZCode / Cherry Studio / 任意客户端
+        │  Anthropic 协议          │  OpenAI Chat            │  OpenAI Responses
+        │  POST /v1/messages       │  POST /v1/chat/         │  POST /v1/responses
+        │                          │       completions       │  (Codex CLI)
+        ▼                          ▼                         ▼
+┌──────────────────── minimax-code2api (127.0.0.1:8045) ───────────────────┐
+│  Anthropic 透传 · OpenAI⇄Anthropic 转换 · Responses 转换 · 鉴权 · 状态页  │
+└──────────────────────────────┬───────────────────────────────────────────┘
                            │ ① 命名管道租约 token（桌面端负责刷新）
                            ▼
               MiniMax Code 桌面端（必须运行且已登录）
