@@ -113,7 +113,15 @@ export function responsesToChat(body) {
     chat.__customToolNames = customNames; // consumed by the route, stripped before upstream
   }
 
-  if (body.tool_choice !== undefined) chat.tool_choice = body.tool_choice;
+  if (body.tool_choice !== undefined) {
+    // Responses uses a flat shape {type:"function", name}; Chat nests it.
+    const choice = body.tool_choice;
+    if (choice && typeof choice === 'object' && choice.type === 'function' && choice.name && !choice.function) {
+      chat.tool_choice = { type: 'function', function: { name: choice.name } };
+    } else {
+      chat.tool_choice = choice;
+    }
+  }
   if (Number.isFinite(body.max_output_tokens)) chat.max_tokens = body.max_output_tokens;
   if (typeof body.temperature === 'number') chat.temperature = body.temperature;
   if (typeof body.top_p === 'number') chat.top_p = body.top_p;

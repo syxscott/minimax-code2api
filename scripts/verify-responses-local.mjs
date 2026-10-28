@@ -145,5 +145,68 @@ const check = (name, cond, detail = '') => {
   check('R5 incomplete on truncation', tail.includes('response.incomplete') && tail.includes('"status":"incomplete"'));
 }
 
+// ── R6: regression checks from post-publication bug review ────────────────
+{
+  // Bug A: case-insensitive canonicalization, unknown MiniMax ids still pass through
+  const { resolveUpstreamModel } = await import('../src/models.js');
+  const cfg = { defaultModel: 'MiniMax-M3', modelAlias: {} };
+  const a = resolveUpstreamModel('minimax-m3', cfg);
+  check('R6a lowercase canonicalized', a.model === 'MiniMax-M3' && a.mappedFrom === 'minimax-m3');
+  const b = resolveUpstreamModel('MiniMax-M3', cfg);
+  check('R6b canonical unchanged', b.model === 'MiniMax-M3' && b.mappedFrom === '');
+  const c = resolveUpstreamModel('minimax-future-model', cfg);
+  check('R6c unknown minimax passthrough', c.model === 'minimax-future-model');
+
+  // Bug C: Responses flat tool_choice normalized to nested Chat shape
+  const chatBody = responsesToChat({
+    model: 'MiniMax-M3',
+    input: 'hi',
+    tools: [{ type: 'function', name: 'shell', parameters: { type: 'object', properties: {} } }],
+    tool_choice: { type: 'function', name: 'shell' },
+  });
+  check('R6d tool_choice nested', J(chatBody.tool_choice) === J({ type: 'function', function: { name: 'shell' } }), J(chatBody.tool_choice));
+
+  // Bug D: empty assistant/user messages dropped, empty tool output substituted
+  const anthropic = convertOpenAiToAnthropic(
+    { messages: [{ role: 'assistant', content: null }, { role: 'user', content: '' }, { role: 'user', content: 'real' }] },
+    'MiniMax-M3',
+    {},
+  );
+  check('R6e empty messages dropped', J(anthropic.messages) === J([{ role: 'user', content: [{ type: 'text', text: 'real' }]}]), J(anthropic.messages));
+  const withEmptyToolOut = convertOpenAiToAnthropic(
+    {
+      messages: [
+        { role: 'user', content: 'run' },
+        { role: 'assistant', content: '', tool_calls: [{ id: 't1', type: 'function', function: { name: 'sh', arguments: '{}' } }] },
+        { role: 'tool', tool_call_id: 't1', content: '' },
+      ],
+    },
+    'MiniMax-M3',
+    {},
+  );
+  const tr = withEmptyToolOut.messages.flatMap((m) => Array.isArray(m.content) ? m.content.filter((x) => x.type === 'tool_result') : []);
+  check('R6f empty tool output substituted', tr.length === 1 && tr[0].content[0].text === '(no output)', J(tr));
+
+  // Bug B: streaming function-arg deltas carry call_id; custom tools use their own event
+  const t = createResponsesStreamTransformer({ model: 'm', created: 1, customToolNames: new Set(['apply_patch']), log: console });
+  const anth = [
+    `event: message_start\ndata: ${J({ type: 'message_start' })}\n\n`,
+    `event: content_block_start\ndata: ${J({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu_z', name: 'apply_patch' } })}\n\n`,
+    `event: content_block_delta\ndata: ${J({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"input":"' } })}\n\n`,
+    `event: content_block_delta\ndata: ${J({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: 'x"}' } })}\n\n`,
+    `event: content_block_stop\ndata: ${J({ type: 'content_block_stop', index: 0 })}\n\n`,
+    `event: message_stop\ndata: ${J({ type: 'message_stop' })}\n\n`,
+  ].join('');
+  const out = (t.push(anth) + t.end()).toString();
+  const events = out.split('\n\n').filter(Boolean).map((e) => ({
+    type: e.match(/^event: (.+)$/m)?.[1],
+    data: JSON.parse(e.replace(/^event: .+\n/m, '').replace('data: ', '')),
+  }));
+  const deltas = events.filter((e) => e.type === 'response.custom_tool_call_input.delta');
+  check('R6g custom delta event + call_id', deltas.length === 2 && deltas.every((e) => e.data.call_id === 'toolu_z'), J(deltas.map((d) => d.data.call_id)));
+  const doneItem = events.find((e) => e.type === 'response.output_item.done')?.data.item;
+  check('R6h custom done item', doneItem?.type === 'custom_tool_call' && doneItem.input === 'x' && doneItem.call_id === 'toolu_z', J(doneItem));
+}
+
 console.log(failed === 0 ? '\nALL LOCAL RESPONSES TESTS PASSED' : `\n${failed} FAILURES`);
 process.exit(failed === 0 ? 0 : 1);

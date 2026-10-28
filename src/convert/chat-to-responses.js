@@ -150,7 +150,7 @@ export function createResponsesStreamTransformer({ model, created, customToolNam
         const openaiIndex = state.outputIndex++;
         if (block.type === 'tool_use') {
           const isCustom = customToolNames?.has(block.name ?? '');
-          state.blocks.set(index, { type: 'tool_use', itemId, openaiIndex, name: block.name ?? '', argsAcc: '', isCustom });
+          state.blocks.set(index, { type: 'tool_use', itemId, openaiIndex, name: block.name ?? '', argsAcc: '', isCustom, callId: block.id });
           const base = isCustom
             ? { type: 'custom_tool_call', id: itemId, call_id: block.id, name: block.name ?? '', input: '', status: 'in_progress' }
             : { type: 'function_call', id: itemId, call_id: block.id, name: block.name ?? '', arguments: '', status: 'in_progress' };
@@ -188,7 +188,10 @@ export function createResponsesStreamTransformer({ model, created, customToolNam
         } else if (delta.type === 'input_json_delta' && delta.partial_json) {
           block.argsAcc += delta.partial_json;
           const base = { output_index: block.openaiIndex, delta: delta.partial_json, item_id: block.itemId, call_id: block.callId, name: block.name };
-          emit([{ type: 'response.function_call_arguments.delta', ...base }], out);
+          emit([{
+            type: block.isCustom ? 'response.custom_tool_call_input.delta' : 'response.function_call_arguments.delta',
+            ...base,
+          }], out);
         }
         break;
       }

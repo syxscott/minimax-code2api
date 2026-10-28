@@ -94,13 +94,18 @@ export function isKnownModel(modelId) {
 //    must not swallow ids the plan actually supports (e.g. M2.5);
 //  - foreign ids (gpt-*, claude-*, ...) map through modelAlias, then to the
 //    configured default model.
+// Case-insensitive lookup so "minimax-m3" / "MINIMAX-M2.5" canonicalize to
+// the catalog spelling; unknown ids still pass through verbatim (see below).
+const LOWERCASE_INDEX = new Map(Object.keys(MINIMAX_MODELS).map((id) => [id.toLowerCase(), id]));
+
 export function resolveUpstreamModel(requestedModel, config) {
   const requested = typeof requestedModel === 'string' ? requestedModel.trim() : '';
   if (!requested) return { model: config.defaultModel, mappedFrom: '' };
+  const canonical = LOWERCASE_INDEX.get(requested.toLowerCase());
+  if (canonical) return { model: canonical, mappedFrom: canonical !== requested ? requested : '' };
   if (/^minimax[-_]/iu.test(requested)) {
     return { model: requested, mappedFrom: '' };
   }
-  if (isKnownModel(requested)) return { model: requested, mappedFrom: '' };
   const aliased = config.modelAlias[requested];
   if (aliased && isKnownModel(aliased)) return { model: aliased, mappedFrom: requested };
   return { model: config.defaultModel, mappedFrom: requested };

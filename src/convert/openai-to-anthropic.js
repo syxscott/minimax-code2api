@@ -25,12 +25,14 @@ export function convertOpenAiToAnthropic(openaiBody, upstreamModel, modelMeta) {
     }
     if (role === 'user') {
       flushToolResults();
-      messages.push({ role: 'user', content: convertUserContent(message.content) });
+      const userBlocks = convertUserContent(message.content);
+      if (userBlocks.length > 0) messages.push({ role: 'user', content: userBlocks });
       continue;
     }
     if (role === 'assistant') {
       flushToolResults();
-      messages.push(convertAssistantMessage(message));
+      const assistantMessage = convertAssistantMessage(message);
+      if (assistantMessage) messages.push(assistantMessage);
       continue;
     }
     if (role === 'tool') {
@@ -38,7 +40,7 @@ export function convertOpenAiToAnthropic(openaiBody, upstreamModel, modelMeta) {
       pendingToolResults.push({
         type: 'tool_result',
         tool_use_id: message.tool_call_id || 'toolu_unknown',
-        content: [{ type: 'text', text: content }],
+        content: [{ type: 'text', text: content || '(no output)' }],
       });
       continue;
     }
@@ -92,7 +94,7 @@ function collectSystem(message, out) {
 
 function convertUserContent(content) {
   if (typeof content === 'string') {
-    return [{ type: 'text', text: content }];
+    return content ? [{ type: 'text', text: content }] : [];
   }
   if (!Array.isArray(content)) {
     return [{ type: 'text', text: stringifyContent(content) }];
@@ -106,7 +108,7 @@ function convertUserContent(content) {
       if (image) blocks.push(image);
     }
   }
-  if (blocks.length === 0) blocks.push({ type: 'text', text: '' });
+  if (blocks.length === 0) return [];
   return blocks;
 }
 
@@ -152,7 +154,9 @@ function convertAssistantMessage(message) {
       input,
     });
   }
-  if (blocks.length === 0) blocks.push({ type: 'text', text: '' });
+  // Empty assistant turns (no text, no tool calls) would serialize as an
+  // empty text block, which the upstream rejects with 400 — drop them.
+  if (blocks.length === 0) return null;
   return { role: 'assistant', content: blocks };
 }
 
